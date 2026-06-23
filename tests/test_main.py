@@ -154,7 +154,7 @@ def test_summary_route_is_registered(client: TestClient) -> None:
 
 
 def test_summary_page_shows_monthly_summary() -> None:
-    response = summary_page()
+    response = summary_page(year="2020")
     expected_values = (
         "월별 요약",
         "2020-01",
@@ -167,7 +167,7 @@ def test_summary_page_shows_monthly_summary() -> None:
 
 
 def test_summary_page_uses_core_summary_values() -> None:
-    response = summary_page()
+    response = summary_page(year="2020")
 
     assert "25,628,828" in response
 
@@ -258,6 +258,18 @@ def test_summary_page_shows_year_filter_and_chart() -> None:
     assert "name=\"year\"" in response
     assert "value=\"2026\" selected" in response
     assert "2026-01" in response
+
+
+def test_render_summary_table_filters_rows_by_year() -> None:
+    summary = {
+        "2025-12": {"income": 1, "expense": -1, "net": 0},
+        "2026-01": {"income": 2, "expense": -2, "net": 0},
+    }
+
+    response = render_summary_table(summary, year="2026")
+
+    assert "2026-01" in response
+    assert "2025-12" not in response
 
 
 def test_render_summary_chart_shows_empty_message() -> None:

@@ -116,7 +116,7 @@ def render_summary_table(
     """Render monthly summary values as an HTML table."""
     if not summary:
         return "<p>표시할 월별 요약이 없습니다.</p>"
-    items = _summary_items(summary)
+    items = _filtered_summary_items(summary, year)
     total_pages = _total_pages(len(items), SUMMARY_PAGE_SIZE)
     current_page = _normalize_page(page, total_pages)
     visible_items = _page_items(items, current_page, SUMMARY_PAGE_SIZE)
@@ -236,6 +236,16 @@ def _summary_items(
     return sorted(summary.items())
 
 
+def _filtered_summary_items(
+    summary: dict[str, dict[str, int]],
+    year: str | None,
+) -> list[tuple[str, dict[str, int]]]:
+    """Return summary items optionally filtered by year."""
+    if year is None:
+        return _summary_items(summary)
+    return _summary_for_year(summary, year)
+
+
 def _summary_years(summary: dict[str, dict[str, int]]) -> list[str]:
     """Return available years from summary keys."""
     return sorted({month[:4] for month in summary})
@@ -317,7 +327,6 @@ def _year_filter(years: list[str], selected_year: str | None) -> str:
     return f"""
     <form class="year-filter" method="get" action="/summary">
       <label class="filter-field">
-        <span>그래프 연도</span>
         <select name="year">{options}</select>
       </label>
       <button type="submit">적용</button>
