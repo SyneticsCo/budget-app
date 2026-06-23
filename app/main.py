@@ -13,11 +13,27 @@ from budget.core import (
     monthly_summary,
 )
 
-app = FastAPI(title="가계부 웹")
 TRANSACTIONS_CSV = Path("data/step1_transactions.csv")
 
 
-@app.get("/", response_class=HTMLResponse)
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI app."""
+    web_app = FastAPI(title="가계부 웹")
+    web_app.add_api_route("/", home, response_class=HTMLResponse)
+    web_app.add_api_route(
+        "/transactions",
+        transactions_page,
+        response_class=HTMLResponse,
+    )
+    web_app.add_api_route(
+        "/summary",
+        summary_page,
+        response_class=HTMLResponse,
+    )
+    web_app.add_api_route("/search", search_page, response_class=HTMLResponse)
+    return web_app
+
+
 def home() -> str:
     """Return the local budget web home page."""
     return """
@@ -36,14 +52,12 @@ def home() -> str:
     """
 
 
-@app.get("/transactions", response_class=HTMLResponse)
 def transactions_page() -> str:
     """Return a page with recent transactions."""
     transactions = load_transactions_from_csv(TRANSACTIONS_CSV)
     return _page("최근 거래", render_transactions_table(transactions))
 
 
-@app.get("/summary", response_class=HTMLResponse)
 def summary_page() -> str:
     """Return a page with monthly summary totals."""
     transactions = load_transactions_from_csv(TRANSACTIONS_CSV)
@@ -51,7 +65,6 @@ def summary_page() -> str:
     return _page("월별 요약", render_summary_table(summary))
 
 
-@app.get("/search", response_class=HTMLResponse)
 def search_page(
     start: str | None = None,
     end: str | None = None,
@@ -218,3 +231,6 @@ def _transaction_row(transaction: dict[str, object]) -> str:
       <td>{escape(str(transaction["memo"]))}</td>
     </tr>
     """
+
+
+app = create_app()

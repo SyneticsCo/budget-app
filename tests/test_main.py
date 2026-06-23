@@ -1,5 +1,11 @@
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from budget.core import load_transactions_from_csv
 from app.main import (
-    app,
+    create_app,
     home,
     search_page,
     render_summary_table,
@@ -9,10 +15,30 @@ from app.main import (
 )
 
 
-def test_home_route_is_registered() -> None:
-    paths = {route.path for route in app.routes}
+@pytest.fixture(scope="session")
+def loaded_transactions() -> list[dict[str, object]]:
+    return load_transactions_from_csv(Path("data/step1_transactions.csv"))
+
+
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(create_app())
+
+
+def _route_paths(client: TestClient) -> set[str]:
+    return {route.path for route in client.app.routes}
+
+
+def test_home_route_is_registered(client: TestClient) -> None:
+    paths = _route_paths(client)
 
     assert "/" in paths
+
+
+def test_client_uses_isolated_app_instance(client: TestClient) -> None:
+    other_client = TestClient(create_app())
+
+    assert client.app is not other_client.app
 
 
 def test_home_page_shows_budget_web_title() -> None:
@@ -22,8 +48,8 @@ def test_home_page_shows_budget_web_title() -> None:
     assert "<html lang=\"ko\">" in response
 
 
-def test_transactions_route_is_registered() -> None:
-    paths = {route.path for route in app.routes}
+def test_transactions_route_is_registered(client: TestClient) -> None:
+    paths = _route_paths(client)
 
     assert "/transactions" in paths
 
@@ -36,6 +62,15 @@ def test_transactions_page_shows_csv_transactions() -> None:
     assert "-12000" in response
 
 
+def test_render_transactions_table_shows_loaded_transactions(
+    loaded_transactions: list[dict[str, object]],
+) -> None:
+    response = render_transactions_table(loaded_transactions)
+
+    assert "점심식사" in response
+    assert "중고 판매" in response
+
+
 def test_render_transactions_table_shows_empty_message() -> None:
     response = render_transactions_table([])
 
@@ -43,8 +78,8 @@ def test_render_transactions_table_shows_empty_message() -> None:
     assert "<table>" not in response
 
 
-def test_summary_route_is_registered() -> None:
-    paths = {route.path for route in app.routes}
+def test_summary_route_is_registered(client: TestClient) -> None:
+    paths = _route_paths(client)
 
     assert "/summary" in paths
 
@@ -54,6 +89,12 @@ def test_summary_page_shows_monthly_summary() -> None:
     expected_values = ("월별 요약", "2026-01", "3525000", "-158300", "3366700")
 
     assert all(value in response for value in expected_values)
+
+
+def test_summary_page_uses_core_summary_values() -> None:
+    response = summary_page()
+
+    assert "3366700" in response
 
 
 def test_render_summary_table_shows_empty_message() -> None:
@@ -80,10 +121,20 @@ def test_render_summary_table_displays_core_summary_values() -> None:
     assert "3341700" in response
 
 
-def test_search_route_is_registered() -> None:
-    paths = {route.path for route in app.routes}
+def test_search_route_is_registered(client: TestClient) -> None:
+    paths = _route_paths(client)
 
     assert "/search" in paths
+
+
+def test_web_routes_allow_get_requests(client: TestClient) -> None:
+    get_paths = {
+        route.path
+        for route in client.app.routes
+        if "GET" in getattr(route, "methods", set())
+    }
+
+    assert {"/", "/transactions", "/summary", "/search"} <= get_paths
 
 
 def test_search_page_without_filters_shows_all_transactions() -> None:
