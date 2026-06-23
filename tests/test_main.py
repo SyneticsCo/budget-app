@@ -1,6 +1,7 @@
 from app.main import (
     app,
     home,
+    search_page,
     render_summary_table,
     render_transactions_table,
     summary_page,
@@ -77,3 +78,41 @@ def test_render_summary_table_displays_core_summary_values() -> None:
     assert "3500000" in response
     assert "-158300" in response
     assert "3341700" in response
+
+
+def test_search_route_is_registered() -> None:
+    paths = {route.path for route in app.routes}
+
+    assert "/search" in paths
+
+
+def test_search_page_without_filters_shows_all_transactions() -> None:
+    response = search_page()
+
+    assert "거래 검색" in response
+    assert "점심식사" in response
+    assert "중고 판매" in response
+
+
+def test_search_page_filters_by_category() -> None:
+    response = search_page(category="교통")
+
+    assert "지하철" in response
+    assert "택시" in response
+    assert "점심식사" not in response
+
+
+def test_search_page_filters_by_date_range() -> None:
+    response = search_page(start="2026-01-20", end="2026-01-25")
+
+    assert "택시" in response
+    assert "병원 진료" in response
+    assert "영화관" in response
+    assert "점심식사" not in response
+
+
+def test_search_page_returns_friendly_error_for_bad_date() -> None:
+    response = search_page(start="2026/01/20")
+
+    assert "날짜 형식은 YYYY-MM-DD여야 합니다." in response
+    assert "<table>" not in response
