@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="site-header">
+        <a class="brand" href="/">
+          <span class="brand-mark">₩</span>
+          <span>가계부 웹</span>
+        </a>
+        <nav class="nav-bar" aria-label="주요 메뉴">
+          <a class="nav-link" href="/transactions">거래 목록</a>
+          <a class="nav-link" href="/summary">월별 요약</a>
+          <a class="nav-link" href="/search">검색</a>
+        </nav>
+      </header>
+      <main class="page-main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>

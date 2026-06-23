@@ -48,6 +48,22 @@ def test_home_page_shows_budget_web_title() -> None:
     assert "<html lang=\"ko\">" in response
 
 
+def test_home_page_uses_styled_template() -> None:
+    response = home()
+
+    assert "/static/styles.css" in response
+    assert "app-shell" in response
+    assert "nav-link" in response
+
+
+def test_home_page_links_to_web_features() -> None:
+    response = home()
+
+    assert "href=\"/transactions\"" in response
+    assert "href=\"/summary\"" in response
+    assert "href=\"/search\"" in response
+
+
 def test_transactions_route_is_registered(client: TestClient) -> None:
     paths = _route_paths(client)
 
@@ -104,7 +120,13 @@ def test_summary_route_is_registered(client: TestClient) -> None:
 
 def test_summary_page_shows_monthly_summary() -> None:
     response = summary_page()
-    expected_values = ("월별 요약", "2026-01", "3525000", "-158300", "3366700")
+    expected_values = (
+        "월별 요약",
+        "2020-01",
+        "37502538",
+        "-11873710",
+        "25628828",
+    )
 
     assert all(value in response for value in expected_values)
 
@@ -112,7 +134,7 @@ def test_summary_page_shows_monthly_summary() -> None:
 def test_summary_page_uses_core_summary_values() -> None:
     response = summary_page()
 
-    assert "3366700" in response
+    assert "25628828" in response
 
 
 def test_render_summary_table_shows_empty_message() -> None:
@@ -178,6 +200,59 @@ def test_search_page_without_filters_shows_all_transactions() -> None:
     assert "중고 판매" in response
 
 
+def test_search_page_shows_filter_form() -> None:
+    response = search_page()
+    expected_fields = (
+        "method=\"get\"",
+        "<select",
+        "name=\"category\"",
+        "name=\"start\"",
+        "name=\"end\"",
+    )
+
+    assert all(field in response for field in expected_fields)
+
+
+def test_search_page_category_filter_uses_select_options() -> None:
+    response = search_page()
+
+    assert "<option value=\"\">전체</option>" in response
+    assert "<option value=\"교통\">" in response
+
+
+def test_search_page_keeps_filter_values() -> None:
+    response = search_page(
+        start="2026-01-20",
+        end="2026-01-25",
+        category="교통",
+    )
+
+    assert "value=\"2026-01-20\"" in response
+    assert "value=\"2026-01-25\"" in response
+    assert "value=\"교통\"" in response
+
+
+def test_search_page_filters_by_start_only() -> None:
+    response = search_page(start="2026-01-20")
+
+    assert "2026-01-20" in response
+    assert "2020-01-01" not in response
+
+
+def test_search_page_filters_by_end_only() -> None:
+    response = search_page(end="2020-01-02")
+
+    assert "2020-01-01" in response
+    assert "2026-01-20" not in response
+
+
+def test_search_page_returns_error_when_start_is_after_end() -> None:
+    response = search_page(start="2026-01-25", end="2026-01-20")
+
+    assert "시작일자는 종료일자보다 늦을 수 없습니다." in response
+    assert "<table>" not in response
+
+
 def test_search_page_filters_by_category() -> None:
     response = search_page(category="교통")
 
@@ -186,13 +261,20 @@ def test_search_page_filters_by_category() -> None:
     assert "점심식사" not in response
 
 
+def test_search_page_treats_empty_dates_as_unset() -> None:
+    response = search_page(start="", end="", category="교통")
+
+    assert "거래 검색" in response
+    assert "날짜 형식은 YYYY-MM-DD여야 합니다." not in response
+    assert "<table>" in response
+
+
 def test_search_page_filters_by_date_range() -> None:
     response = search_page(start="2026-01-20", end="2026-01-25")
 
-    assert "택시" in response
-    assert "병원 진료" in response
-    assert "영화관" in response
-    assert "점심식사" not in response
+    assert "2026-01-20" in response
+    assert "중고 판매" in response
+    assert "2020-01-01" not in response
 
 
 def test_search_page_returns_friendly_error_for_bad_date() -> None:

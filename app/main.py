@@ -6,6 +6,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup
 
 from budget.core import (
     filter_by_category,
@@ -13,12 +16,20 @@ from budget.core import (
     monthly_summary,
 )
 
-TRANSACTIONS_CSV = Path("data/step1_transactions.csv")
+TRANSACTIONS_CSV = Path("data/step4_large_transactions.csv")
+APP_DIR = Path(__file__).parent
+STATIC_DIR = APP_DIR / "static"
+TEMPLATE_DIR = APP_DIR / "templates"
+TEMPLATES = Environment(
+    loader=FileSystemLoader(TEMPLATE_DIR),
+    autoescape=select_autoescape(["html"]),
+)
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI app."""
     web_app = FastAPI(title="가계부 웹")
+    web_app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     web_app.add_api_route("/", home, response_class=HTMLResponse)
     web_app.add_api_route(
         "/transactions",
@@ -36,7 +47,7 @@ def create_app() -> FastAPI:
 
 def home() -> str:
     """Return the local budget web home page."""
-    return _page("가계부 웹", "")
+    return _render_template("home.html", {"title": "가계부 웹"})
 
 
 def transactions_page() -> str:
@@ -58,12 +69,17 @@ def search_page(
     category: str | None = None,
 ) -> str:
     """Return a filtered transaction search page."""
+    start = _clean_filter_value(start)
+    end = _clean_filter_value(end)
+    category = _clean_filter_value(category)
+    transactions = load_transactions_from_csv(TRANSACTIONS_CSV)
+    categories = _category_options(transactions)
+    form = _search_form(start, end, category, categories)
     error_message = _date_filter_error(start, end)
     if error_message:
-        return _page("거래 검색", f"<p>{escape(error_message)}</p>")
-    transactions = load_transactions_from_csv(TRANSACTIONS_CSV)
+        return _page("거래 검색", form + _error_message(error_message))
     filtered = _filter_transactions(transactions, start, end, category)
-    return _page("거래 검색", render_transactions_table(filtered))
+    return _page("거래 검색", form + render_transactions_table(filtered))
 
 
 def render_transactions_table(transactions: list[dict[str, object]]) -> str:
@@ -101,6 +117,14 @@ def _filter_transactions(
     return filtered
 
 
+def _clean_filter_value(value: str | None) -> str | None:
+    """Return None for empty form values."""
+    if value is None:
+        return None
+    cleaned_value = value.strip()
+    return cleaned_value or None
+
+
 def _filter_transactions_by_date(
     transactions: list[dict[str, object]],
     start: str | None,
@@ -132,7 +156,10 @@ def _is_in_date_range(
 def _date_filter_error(start: str | None, end: str | None) -> str:
     """Return a friendly date validation error message."""
     values = [value for value in (start, end) if value]
-    return _date_format_error(values)
+    format_error = _date_format_error(values)
+    if format_error:
+        return format_error
+    return _date_range_error(start, end)
 
 
 def _date_format_error(values: list[str]) -> str:
@@ -145,23 +172,110 @@ def _date_format_error(values: list[str]) -> str:
     return ""
 
 
+def _date_range_error(start: str | None, end: str | None) -> str:
+    """Return an error when start date is after end date."""
+    if _has_reversed_date_range(start, end):
+        return "시작일자는 종료일자보다 늦을 수 없습니다."
+    return ""
+
+
+def _has_reversed_date_range(start: str | None, end: str | None) -> bool:
+    """Return whether the date range is reversed."""
+    if start is None or end is None:
+        return False
+    return date.fromisoformat(start) > date.fromisoformat(end)
+
+
 def _page(title: str, content: str) -> str:
     """Wrap content in a minimal HTML page."""
+    return _render_template(
+        "content.html",
+        {"title": title, "content": Markup(content)},
+    )
+
+
+def _search_form(
+    start: str | None,
+    end: str | None,
+    category: str | None,
+    categories: list[str],
+) -> str:
+    """Render the search filter form."""
     return f"""
-    <!doctype html>
-    <html lang="ko">
-      <head>
-        <meta charset="utf-8">
-        <title>{escape(title)}</title>
-      </head>
-      <body>
-        <main>
-          <h1>{escape(title)}</h1>
-          {content}
-        </main>
-      </body>
-    </html>
+    <form class="filter-form" method="get" action="/search">
+      {_category_field(category, categories)}
+      {_form_field("start", "시작일자", "date", start)}
+      {_form_field("end", "종료일자", "date", end)}
+      <div class="filter-actions">
+        <button type="submit">검색</button>
+        <a class="reset-link" href="/search">초기화</a>
+      </div>
+    </form>
     """
+
+
+def _category_options(transactions: list[dict[str, object]]) -> list[str]:
+    """Return sorted category options from transactions."""
+    return sorted({
+        str(transaction["category"])
+        for transaction in transactions
+    })
+
+
+def _category_field(selected: str | None, categories: list[str]) -> str:
+    """Render the category select field."""
+    options = "".join(
+        _category_option(category, selected)
+        for category in categories
+    )
+    return f"""
+    <label class="filter-field">
+      <span>카테고리</span>
+      <select name="category">
+        <option value="">전체</option>
+        {options}
+      </select>
+    </label>
+    """
+
+
+def _category_option(category: str, selected: str | None) -> str:
+    """Render one category select option."""
+    selected_attr = " selected" if category == selected else ""
+    escaped_category = escape(category)
+    return (
+        f"<option value=\"{escaped_category}\"{selected_attr}>"
+        f"{escaped_category}</option>"
+    )
+
+
+def _form_field(
+    name: str,
+    label: str,
+    input_type: str,
+    value: str | None,
+) -> str:
+    """Render one labeled form field."""
+    return f"""
+    <label class="filter-field">
+      <span>{escape(label)}</span>
+      <input
+        type="{escape(input_type)}"
+        name="{escape(name)}"
+        value="{escape(value or "")}"
+      >
+    </label>
+    """
+
+
+def _error_message(message: str) -> str:
+    """Render a search error message."""
+    return f"<p class=\"error-message\">{escape(message)}</p>"
+
+
+def _render_template(template_name: str, context: dict[str, object]) -> str:
+    """Render a Jinja2 template."""
+    return TEMPLATES.get_template(template_name).render(**context)
 
 
 def _table(headers: list[str], rows: str) -> str:
