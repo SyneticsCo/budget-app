@@ -1,4 +1,11 @@
-from app.main import app, home, render_transactions_table, transactions_page
+from app.main import (
+    app,
+    home,
+    render_summary_table,
+    render_transactions_table,
+    summary_page,
+    transactions_page,
+)
 
 
 def test_home_route_is_registered() -> None:
@@ -33,3 +40,40 @@ def test_render_transactions_table_shows_empty_message() -> None:
 
     assert "표시할 거래가 없습니다." in response
     assert "<table>" not in response
+
+
+def test_summary_route_is_registered() -> None:
+    paths = {route.path for route in app.routes}
+
+    assert "/summary" in paths
+
+
+def test_summary_page_shows_monthly_summary() -> None:
+    response = summary_page()
+    expected_values = ("월별 요약", "2026-01", "3525000", "-158300", "3366700")
+
+    assert all(value in response for value in expected_values)
+
+
+def test_render_summary_table_shows_empty_message() -> None:
+    response = render_summary_table({})
+
+    assert "표시할 월별 요약이 없습니다." in response
+    assert "<table>" not in response
+
+
+def test_render_summary_table_displays_core_summary_values() -> None:
+    summary = {
+        "2026-01": {
+            "income": 3500000,
+            "expense": -158300,
+            "net": 3341700,
+        },
+    }
+
+    response = render_summary_table(summary)
+
+    assert "2026-01" in response
+    assert "3500000" in response
+    assert "-158300" in response
+    assert "3341700" in response

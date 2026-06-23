@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from budget.core import load_transactions_from_csv
+from budget.core import load_transactions_from_csv, monthly_summary
 
 app = FastAPI(title="가계부 웹")
 TRANSACTIONS_CSV = Path("data/step1_transactions.csv")
@@ -38,6 +38,14 @@ def transactions_page() -> str:
     return _page("최근 거래", render_transactions_table(transactions))
 
 
+@app.get("/summary", response_class=HTMLResponse)
+def summary_page() -> str:
+    """Return a page with monthly summary totals."""
+    transactions = load_transactions_from_csv(TRANSACTIONS_CSV)
+    summary = monthly_summary(transactions)
+    return _page("월별 요약", render_summary_table(summary))
+
+
 def render_transactions_table(transactions: list[dict[str, object]]) -> str:
     """Render transactions as an HTML table."""
     if not transactions:
@@ -47,6 +55,17 @@ def render_transactions_table(transactions: list[dict[str, object]]) -> str:
         for transaction in transactions
     )
     return f"<table>{_transaction_header()}<tbody>{rows}</tbody></table>"
+
+
+def render_summary_table(summary: dict[str, dict[str, int]]) -> str:
+    """Render monthly summary values as an HTML table."""
+    if not summary:
+        return "<p>표시할 월별 요약이 없습니다.</p>"
+    rows = "".join(
+        _summary_row(month, values)
+        for month, values in summary.items()
+    )
+    return f"<table>{_summary_header()}<tbody>{rows}</tbody></table>"
 
 
 def _page(title: str, content: str) -> str:
@@ -81,6 +100,32 @@ def _transaction_header() -> str:
         <th>메모</th>
       </tr>
     </thead>
+    """
+
+
+def _summary_header() -> str:
+    """Return the summary table header."""
+    return """
+    <thead>
+      <tr>
+        <th>월</th>
+        <th>수입</th>
+        <th>지출</th>
+        <th>잔액</th>
+      </tr>
+    </thead>
+    """
+
+
+def _summary_row(month: str, values: dict[str, int]) -> str:
+    """Render one monthly summary row."""
+    return f"""
+    <tr>
+      <td>{escape(month)}</td>
+      <td>{escape(str(values["income"]))}</td>
+      <td>{escape(str(values["expense"]))}</td>
+      <td>{escape(str(values["net"]))}</td>
+    </tr>
     """
 
 
