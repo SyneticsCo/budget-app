@@ -36,20 +36,7 @@ def create_app() -> FastAPI:
 
 def home() -> str:
     """Return the local budget web home page."""
-    return """
-    <!doctype html>
-    <html lang="ko">
-      <head>
-        <meta charset="utf-8">
-        <title>가계부 웹</title>
-      </head>
-      <body>
-        <main>
-          <h1>가계부 웹</h1>
-        </main>
-      </body>
-    </html>
-    """
+    return _page("가계부 웹", "")
 
 
 def transactions_page() -> str:
@@ -87,7 +74,7 @@ def render_transactions_table(transactions: list[dict[str, object]]) -> str:
         _transaction_row(transaction)
         for transaction in transactions
     )
-    return f"<table>{_transaction_header()}<tbody>{rows}</tbody></table>"
+    return _table(_transaction_headers(), rows)
 
 
 def render_summary_table(summary: dict[str, dict[str, int]]) -> str:
@@ -98,7 +85,7 @@ def render_summary_table(summary: dict[str, dict[str, int]]) -> str:
         _summary_row(month, values)
         for month, values in summary.items()
     )
-    return f"<table>{_summary_header()}<tbody>{rows}</tbody></table>"
+    return _table(_summary_headers(), rows)
 
 
 def _filter_transactions(
@@ -177,60 +164,57 @@ def _page(title: str, content: str) -> str:
     """
 
 
-def _transaction_header() -> str:
-    """Return the transaction table header."""
-    return """
-    <thead>
-      <tr>
-        <th>날짜</th>
-        <th>유형</th>
-        <th>카테고리</th>
-        <th>설명</th>
-        <th>금액</th>
-        <th>메모</th>
-      </tr>
-    </thead>
-    """
+def _table(headers: list[str], rows: str) -> str:
+    """Render a complete HTML table."""
+    return f"<table>{_table_head(headers)}<tbody>{rows}</tbody></table>"
 
 
-def _summary_header() -> str:
-    """Return the summary table header."""
-    return """
-    <thead>
-      <tr>
-        <th>월</th>
-        <th>수입</th>
-        <th>지출</th>
-        <th>잔액</th>
-      </tr>
-    </thead>
-    """
+def _table_head(headers: list[str]) -> str:
+    """Render an HTML table header."""
+    cells = "".join(_header_cell(header) for header in headers)
+    return f"<thead><tr>{cells}</tr></thead>"
+
+
+def _header_cell(value: str) -> str:
+    """Render an escaped table header cell."""
+    return f"<th>{escape(value)}</th>"
+
+
+def _row(cells: list[object]) -> str:
+    """Render an HTML table row."""
+    return f"<tr>{''.join(_cell(cell) for cell in cells)}</tr>"
+
+
+def _cell(value: object) -> str:
+    """Render an escaped table cell."""
+    return f"<td>{escape(str(value))}</td>"
+
+
+def _transaction_headers() -> list[str]:
+    """Return transaction table headers."""
+    return ["날짜", "유형", "카테고리", "설명", "금액", "메모"]
+
+
+def _summary_headers() -> list[str]:
+    """Return summary table headers."""
+    return ["월", "수입", "지출", "잔액"]
 
 
 def _summary_row(month: str, values: dict[str, int]) -> str:
     """Render one monthly summary row."""
-    return f"""
-    <tr>
-      <td>{escape(month)}</td>
-      <td>{escape(str(values["income"]))}</td>
-      <td>{escape(str(values["expense"]))}</td>
-      <td>{escape(str(values["net"]))}</td>
-    </tr>
-    """
+    return _row([month, values["income"], values["expense"], values["net"]])
 
 
 def _transaction_row(transaction: dict[str, object]) -> str:
     """Render one transaction row."""
-    return f"""
-    <tr>
-      <td>{escape(str(transaction["date"]))}</td>
-      <td>{escape(str(transaction["type"]))}</td>
-      <td>{escape(str(transaction["category"]))}</td>
-      <td>{escape(str(transaction["description"]))}</td>
-      <td>{escape(str(transaction["amount"]))}</td>
-      <td>{escape(str(transaction["memo"]))}</td>
-    </tr>
-    """
+    return _row([
+        transaction["date"],
+        transaction["type"],
+        transaction["category"],
+        transaction["description"],
+        transaction["amount"],
+        transaction["memo"],
+    ])
 
 
 app = create_app()

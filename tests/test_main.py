@@ -78,6 +78,24 @@ def test_render_transactions_table_shows_empty_message() -> None:
     assert "<table>" not in response
 
 
+def test_render_transactions_table_escapes_html_values() -> None:
+    transactions = [
+        {
+            "date": "2026-01-01",
+            "type": "지출",
+            "category": "<script>",
+            "description": "테스트",
+            "amount": -1000,
+            "memo": "",
+        },
+    ]
+
+    response = render_transactions_table(transactions)
+
+    assert "&lt;script&gt;" in response
+    assert "<script>" not in response
+
+
 def test_summary_route_is_registered(client: TestClient) -> None:
     paths = _route_paths(client)
 
@@ -119,6 +137,21 @@ def test_render_summary_table_displays_core_summary_values() -> None:
     assert "3500000" in response
     assert "-158300" in response
     assert "3341700" in response
+
+
+def test_render_summary_table_shows_expected_headers() -> None:
+    response = render_summary_table({
+        "2026-01": {
+            "income": 1,
+            "expense": -1,
+            "net": 0,
+        },
+    })
+
+    assert "<th>월</th>" in response
+    assert "<th>수입</th>" in response
+    assert "<th>지출</th>" in response
+    assert "<th>잔액</th>" in response
 
 
 def test_search_route_is_registered(client: TestClient) -> None:
