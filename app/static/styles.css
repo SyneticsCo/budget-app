@@ -336,7 +336,7 @@ th,
 td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -353,7 +353,7 @@ td {
 }
 
 .amount-cell {
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
