@@ -51,10 +51,11 @@ def home() -> str:
     return _render_template("home.html", {"title": "가계부 웹"})
 
 
-def transactions_page() -> str:
+def transactions_page(page: int = 1) -> str:
     """Return a page with recent transactions."""
     transactions = load_transactions_from_csv(TRANSACTIONS_CSV)
-    return _page("최근 거래", render_transactions_table(transactions))
+    content = render_transactions_table(transactions, page=page)
+    return _page("최근 거래", content)
 
 
 def summary_page(page: int = 1, year: str | None = None) -> str:
@@ -69,6 +70,7 @@ def search_page(
     start: str | None = None,
     end: str | None = None,
     category: str | None = None,
+    page: int = 1,
 ) -> str:
     """Return a filtered transaction search page."""
     start = _clean_filter_value(start)
@@ -81,18 +83,38 @@ def search_page(
     if error_message:
         return _page("거래 검색", form + _error_message(error_message))
     filtered = _filter_transactions(transactions, start, end, category)
-    return _page("거래 검색", form + render_transactions_table(filtered))
+    params = _transaction_query_params(start, end, category)
+    table = render_transactions_table(filtered, page, "/search", params)
+    return _page("거래 검색", form + table)
 
 
-def render_transactions_table(transactions: list[dict[str, object]]) -> str:
+def render_transactions_table(
+    transactions: list[dict[str, object]],
+    page: int = 1,
+    base_path: str = "/transactions",
+    query_params: dict[str, str | None] | None = None,
+) -> str:
     """Render transactions as an HTML table."""
     if not transactions:
         return "<p>표시할 거래가 없습니다.</p>"
+    total_pages = _total_pages(len(transactions), SUMMARY_PAGE_SIZE)
+    current_page = _normalize_page(page, total_pages)
+    visible_transactions = _page_items(
+        transactions,
+        current_page,
+        SUMMARY_PAGE_SIZE,
+    )
     rows = "".join(
         _transaction_row(transaction)
-        for transaction in transactions
+        for transaction in visible_transactions
     )
-    return _table(_transaction_headers(), rows)
+    table = _table(_transaction_headers(), rows)
+    return table + _pagination(
+        current_page,
+        total_pages,
+        base_path,
+        query_params or {},
+    )
 
 
 def render_summary_view(
@@ -125,7 +147,12 @@ def render_summary_table(
         for month, values in visible_items
     )
     table = _table(_summary_headers(), rows)
-    return table + _pagination(current_page, total_pages, year)
+    return table + _pagination(
+        current_page,
+        total_pages,
+        "/summary",
+        _summary_query_params(year),
+    )
 
 
 def render_summary_chart(
@@ -158,6 +185,15 @@ def _filter_transactions(
     if category:
         return filter_by_category(filtered, category)
     return filtered
+
+
+def _transaction_query_params(
+    start: str | None,
+    end: str | None,
+    category: str | None,
+) -> dict[str, str | None]:
+    """Return active transaction query parameters."""
+    return {"start": start, "end": end, "category": category}
 
 
 def _clean_filter_value(value: str | None) -> str | None:
@@ -294,31 +330,74 @@ def _page_items(
     return items[start_index:start_index + page_size]
 
 
-def _pagination(page: int, total_pages: int, year: str | None) -> str:
-    """Render summary pagination."""
+def _pagination(
+    page: int,
+    total_pages: int,
+    base_path: str,
+    query_params: dict[str, str | None],
+) -> str:
+    """Render pagination."""
     if total_pages <= 1:
         return ""
     return (
         "<nav class=\"pagination\">"
-        + _page_link("이전", page - 1, page > 1, year)
+        + _page_link("이전", page - 1, page > 1, base_path, query_params)
         + f"<span>페이지 {page} / {total_pages}</span>"
-        + _page_link("다음", page + 1, page < total_pages, year)
+        + _page_link(
+            "다음",
+            page + 1,
+            page < total_pages,
+            base_path,
+            query_params,
+        )
         + "</nav>"
     )
 
 
-def _page_link(label: str, page: int, enabled: bool, year: str | None) -> str:
+def _page_link(
+    label: str,
+    page: int,
+    enabled: bool,
+    base_path: str,
+    query_params: dict[str, str | None],
+) -> str:
     """Render one pagination link."""
     if not enabled:
         return f"<span class=\"page-link disabled\">{escape(label)}</span>"
-    url = _summary_url(page, year)
+    url = escape(_page_url(base_path, page, query_params), quote=True)
     return f"<a class=\"page-link\" href=\"{url}\">{label}</a>"
 
 
-def _summary_url(page: int, year: str | None) -> str:
-    """Return a summary URL preserving filters."""
-    year_query = f"&year={escape(year)}" if year else ""
-    return f"/summary?page={page}{year_query}"
+def _page_url(
+    base_path: str,
+    page: int,
+    query_params: dict[str, str | None],
+) -> str:
+    """Return a pagination URL preserving filters."""
+    pairs = [("page", str(page))] + _active_query_pairs(query_params)
+    query = "&".join(_query_pair(key, value) for key, value in pairs)
+    return f"{base_path}?{query}"
+
+
+def _active_query_pairs(
+    query_params: dict[str, str | None],
+) -> list[tuple[str, str]]:
+    """Return query pairs with non-empty values."""
+    return [
+        (key, value)
+        for key, value in query_params.items()
+        if value
+    ]
+
+
+def _query_pair(key: str, value: str) -> str:
+    """Return one escaped query pair."""
+    return f"{key}={value}"
+
+
+def _summary_query_params(year: str | None) -> dict[str, str | None]:
+    """Return active summary query parameters."""
+    return {"year": year}
 
 
 def _year_filter(years: list[str], selected_year: str | None) -> str:

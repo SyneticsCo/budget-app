@@ -75,8 +75,8 @@ def test_transactions_page_shows_csv_transactions() -> None:
     response = transactions_page()
 
     assert "최근 거래" in response
-    assert "점심식사" in response
-    assert "-12,000" in response
+    assert "<table>" in response
+    assert "페이지 1 /" in response
 
 
 def test_render_transactions_table_shows_loaded_transactions(
@@ -145,6 +145,48 @@ def test_render_transactions_table_marks_amount_cell() -> None:
     response = render_transactions_table(transactions)
 
     assert "class=\"amount-cell\">3,212,756" in response
+
+
+def test_render_transactions_table_limits_rows_to_twenty() -> None:
+    transactions = [
+        {
+            "date": f"2026-01-{day:02d}",
+            "type": "지출",
+            "category": "식비",
+            "description": f"거래 {day}",
+            "amount": -day,
+            "memo": "",
+        }
+        for day in range(1, 22)
+    ]
+
+    response = render_transactions_table(transactions)
+
+    assert "거래 20" in response
+    assert "거래 21" not in response
+    assert "페이지 1 / 2" in response
+
+
+def test_render_transactions_table_keeps_search_filters_in_links() -> None:
+    transactions = [
+        {
+            "date": f"2026-01-{day:02d}",
+            "type": "지출",
+            "category": "교통",
+            "description": f"교통 {day}",
+            "amount": -day,
+            "memo": "",
+        }
+        for day in range(1, 22)
+    ]
+
+    response = render_transactions_table(
+        transactions,
+        base_path="/search",
+        query_params={"category": "교통"},
+    )
+
+    assert "href=\"/search?page=2&amp;category=교통\"" in response
 
 
 def test_summary_route_is_registered(client: TestClient) -> None:
@@ -298,8 +340,8 @@ def test_search_page_without_filters_shows_all_transactions() -> None:
     response = search_page()
 
     assert "거래 검색" in response
-    assert "점심식사" in response
-    assert "중고 판매" in response
+    assert "<table>" in response
+    assert "페이지 1 /" in response
 
 
 def test_search_page_shows_filter_form() -> None:

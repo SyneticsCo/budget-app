@@ -42,7 +42,6 @@ def test_large_csv_web_paths_complete_within_ci_budget(
     durations = _measure_web_paths(transactions)
     details = _format_path_results(durations)
 
-    assert _slowest_path(durations) == "list", details
     assert max(durations.values()) < MAX_PATH_SECONDS, details
     assert sum(durations.values()) < MAX_TOTAL_PATH_SECONDS
 
