@@ -1,4 +1,4 @@
-name: CI
+name: Quality Gate
 
 on:
   push:
@@ -9,14 +9,15 @@ on:
       - main
 
 jobs:
-  test:
+  quality-gate:
+    name: pytest / coverage / complexity / style
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -26,13 +27,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests with coverage
+      - name: pytest with coverage
         run: pytest --cov=app --cov=budget --cov-report=term-missing --cov-fail-under=70
 
-      - name: Check cyclomatic complexity
-        run: |
-          radon cc -s app budget tests
-          xenon --max-absolute B --max-modules B --max-average B app budget tests
+      - name: radon complexity report
+        run: radon cc -s app budget tests
 
-      - name: Run flake8
-        run: flake8 app budget tests
+      - name: xenon complexity gate
+        run: xenon --max-absolute B --max-modules B --max-average B app budget tests
+
+      - name: flake8 style gate
+        run: |
+          flake8 app budget tests
