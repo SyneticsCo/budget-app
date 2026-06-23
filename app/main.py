@@ -17,6 +17,7 @@ from budget.core import (
 )
 
 TRANSACTIONS_CSV = Path("data/step4_large_transactions.csv")
+SUMMARY_PAGE_SIZE = 20
 APP_DIR = Path(__file__).parent
 STATIC_DIR = APP_DIR / "static"
 TEMPLATE_DIR = APP_DIR / "templates"
@@ -56,11 +57,12 @@ def transactions_page() -> str:
     return _page("최근 거래", render_transactions_table(transactions))
 
 
-def summary_page() -> str:
+def summary_page(page: int = 1, year: str | None = None) -> str:
     """Return a page with monthly summary totals."""
     transactions = load_transactions_from_csv(TRANSACTIONS_CSV)
     summary = monthly_summary(transactions)
-    return _page("월별 요약", render_summary_table(summary))
+    content = render_summary_view(summary, page, year)
+    return _page("월별 요약", content)
 
 
 def search_page(
@@ -93,15 +95,56 @@ def render_transactions_table(transactions: list[dict[str, object]]) -> str:
     return _table(_transaction_headers(), rows)
 
 
-def render_summary_table(summary: dict[str, dict[str, int]]) -> str:
+def render_summary_view(
+    summary: dict[str, dict[str, int]],
+    page: int = 1,
+    year: str | None = None,
+) -> str:
+    """Render the summary chart and paginated table."""
+    selected_year = _selected_summary_year(summary, year)
+    return (
+        render_summary_chart(summary, selected_year)
+        + render_summary_table(summary, page=page, year=selected_year)
+    )
+
+
+def render_summary_table(
+    summary: dict[str, dict[str, int]],
+    page: int = 1,
+    year: str | None = None,
+) -> str:
     """Render monthly summary values as an HTML table."""
     if not summary:
         return "<p>표시할 월별 요약이 없습니다.</p>"
+    items = _summary_items(summary)
+    total_pages = _total_pages(len(items), SUMMARY_PAGE_SIZE)
+    current_page = _normalize_page(page, total_pages)
+    visible_items = _page_items(items, current_page, SUMMARY_PAGE_SIZE)
     rows = "".join(
         _summary_row(month, values)
-        for month, values in summary.items()
+        for month, values in visible_items
     )
-    return _table(_summary_headers(), rows)
+    table = _table(_summary_headers(), rows)
+    return table + _pagination(current_page, total_pages, year)
+
+
+def render_summary_chart(
+    summary: dict[str, dict[str, int]],
+    year: str | None,
+) -> str:
+    """Render a yearly income and expense bar chart."""
+    years = _summary_years(summary)
+    chart_summary = _summary_for_year(summary, year)
+    if not chart_summary:
+        return _year_filter(years, year) + "<p>표시할 그래프가 없습니다.</p>"
+    bars = "".join(
+        _chart_month(month, values)
+        for month, values in chart_summary
+    )
+    return (
+        _year_filter(years, year)
+        + f"<div class=\"summary-chart\">{bars}</div>"
+    )
 
 
 def _filter_transactions(
@@ -184,6 +227,136 @@ def _has_reversed_date_range(start: str | None, end: str | None) -> bool:
     if start is None or end is None:
         return False
     return date.fromisoformat(start) > date.fromisoformat(end)
+
+
+def _summary_items(
+    summary: dict[str, dict[str, int]],
+) -> list[tuple[str, dict[str, int]]]:
+    """Return summary items sorted by month."""
+    return sorted(summary.items())
+
+
+def _summary_years(summary: dict[str, dict[str, int]]) -> list[str]:
+    """Return available years from summary keys."""
+    return sorted({month[:4] for month in summary})
+
+
+def _selected_summary_year(
+    summary: dict[str, dict[str, int]],
+    year: str | None,
+) -> str | None:
+    """Return the selected chart year."""
+    years = _summary_years(summary)
+    if year in years:
+        return year
+    return years[-1] if years else None
+
+
+def _summary_for_year(
+    summary: dict[str, dict[str, int]],
+    year: str | None,
+) -> list[tuple[str, dict[str, int]]]:
+    """Return summary items for a selected year."""
+    return [
+        (month, values)
+        for month, values in _summary_items(summary)
+        if year is not None and month.startswith(year)
+    ]
+
+
+def _total_pages(item_count: int, page_size: int) -> int:
+    """Return total page count."""
+    return max(1, (item_count + page_size - 1) // page_size)
+
+
+def _normalize_page(page: int, total_pages: int) -> int:
+    """Clamp page into available range."""
+    return min(max(page, 1), total_pages)
+
+
+def _page_items(
+    items: list[tuple[str, dict[str, int]]],
+    page: int,
+    page_size: int,
+) -> list[tuple[str, dict[str, int]]]:
+    """Return items for a page."""
+    start_index = (page - 1) * page_size
+    return items[start_index:start_index + page_size]
+
+
+def _pagination(page: int, total_pages: int, year: str | None) -> str:
+    """Render summary pagination."""
+    if total_pages <= 1:
+        return ""
+    return (
+        "<nav class=\"pagination\">"
+        + _page_link("이전", page - 1, page > 1, year)
+        + f"<span>페이지 {page} / {total_pages}</span>"
+        + _page_link("다음", page + 1, page < total_pages, year)
+        + "</nav>"
+    )
+
+
+def _page_link(label: str, page: int, enabled: bool, year: str | None) -> str:
+    """Render one pagination link."""
+    if not enabled:
+        return f"<span class=\"page-link disabled\">{escape(label)}</span>"
+    url = _summary_url(page, year)
+    return f"<a class=\"page-link\" href=\"{url}\">{label}</a>"
+
+
+def _summary_url(page: int, year: str | None) -> str:
+    """Return a summary URL preserving filters."""
+    year_query = f"&year={escape(year)}" if year else ""
+    return f"/summary?page={page}{year_query}"
+
+
+def _year_filter(years: list[str], selected_year: str | None) -> str:
+    """Render chart year filter."""
+    options = "".join(_year_option(year, selected_year) for year in years)
+    return f"""
+    <form class="year-filter" method="get" action="/summary">
+      <label class="filter-field">
+        <span>그래프 연도</span>
+        <select name="year">{options}</select>
+      </label>
+      <button type="submit">적용</button>
+    </form>
+    """
+
+
+def _year_option(year: str, selected_year: str | None) -> str:
+    """Render one year select option."""
+    selected_attr = " selected" if year == selected_year else ""
+    escaped_year = escape(year)
+    return (
+        f"<option value=\"{escaped_year}\"{selected_attr}>"
+        f"{escaped_year}</option>"
+    )
+
+
+def _chart_month(month: str, values: dict[str, int]) -> str:
+    """Render one chart month with income and expense bars."""
+    max_value = max(abs(values["income"]), abs(values["expense"]), 1)
+    return f"""
+    <div class="chart-month">
+      <div class="bar-pair">
+        {_chart_bar("income", values["income"], max_value)}
+        {_chart_bar("expense", abs(values["expense"]), max_value)}
+      </div>
+      <span>{escape(month)}</span>
+    </div>
+    """
+
+
+def _chart_bar(kind: str, amount: int, max_value: int) -> str:
+    """Render one chart bar."""
+    height = 24 + int((amount / max_value) * 116)
+    label = _format_amount(amount)
+    return (
+        f"<div class=\"chart-bar {escape(kind)}\" "
+        f"style=\"height: {height}px\" title=\"{label}\"></div>"
+    )
 
 
 def _page(title: str, content: str) -> str:
@@ -294,14 +467,14 @@ def _header_cell(value: str) -> str:
     return f"<th>{escape(value)}</th>"
 
 
-def _row(cells: list[object]) -> str:
-    """Render an HTML table row."""
-    return f"<tr>{''.join(_cell(cell) for cell in cells)}</tr>"
-
-
 def _cell(value: object) -> str:
     """Render an escaped table cell."""
     return f"<td>{escape(str(value))}</td>"
+
+
+def _amount_cell(value: object) -> str:
+    """Render a right-aligned amount table cell."""
+    return f"<td class=\"amount-cell\">{escape(str(value))}</td>"
 
 
 def _transaction_headers() -> list[str]:
@@ -316,19 +489,33 @@ def _summary_headers() -> list[str]:
 
 def _summary_row(month: str, values: dict[str, int]) -> str:
     """Render one monthly summary row."""
-    return _row([month, values["income"], values["expense"], values["net"]])
+    return (
+        "<tr>"
+        + _cell(month)
+        + _amount_cell(_format_amount(values["income"]))
+        + _amount_cell(_format_amount(values["expense"]))
+        + _amount_cell(_format_amount(values["net"]))
+        + "</tr>"
+    )
 
 
 def _transaction_row(transaction: dict[str, object]) -> str:
     """Render one transaction row."""
-    return _row([
-        transaction["date"],
-        transaction["type"],
-        transaction["category"],
-        transaction["description"],
-        transaction["amount"],
-        transaction["memo"],
-    ])
+    return (
+        "<tr>"
+        + _cell(transaction["date"])
+        + _cell(transaction["type"])
+        + _cell(transaction["category"])
+        + _cell(transaction["description"])
+        + _amount_cell(_format_amount(transaction["amount"]))
+        + _cell(transaction["memo"])
+        + "</tr>"
+    )
+
+
+def _format_amount(value: object) -> str:
+    """Format an amount with thousands separators."""
+    return f"{int(value):,}"
 
 
 app = create_app()

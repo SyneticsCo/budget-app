@@ -241,6 +241,89 @@ h1 {
   font-weight: 700;
 }
 
+.year-filter {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.year-filter button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.summary-chart {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  min-height: 220px;
+  margin-bottom: 24px;
+  padding: 18px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.chart-month {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 72px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bar-pair {
+  display: flex;
+  align-items: end;
+  gap: 5px;
+  height: 150px;
+}
+
+.chart-bar {
+  width: 18px;
+  min-height: 24px;
+  border-radius: 4px 4px 0 0;
+}
+
+.chart-bar.income {
+  background: var(--accent);
+}
+
+.chart-bar.expense {
+  background: #d2643c;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.page-link {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.page-link.disabled {
+  opacity: 0.45;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -268,6 +351,11 @@ td {
   font-size: 14px;
 }
 
+.amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 p {
   color: var(--muted);
 }
@@ -290,6 +378,11 @@ p {
 
   .filter-form {
     grid-template-columns: 1fr;
+  }
+
+  .year-filter {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   h1 {

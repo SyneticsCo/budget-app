@@ -8,6 +8,7 @@ from app.main import (
     create_app,
     home,
     search_page,
+    render_summary_chart,
     render_summary_table,
     render_transactions_table,
     summary_page,
@@ -75,7 +76,7 @@ def test_transactions_page_shows_csv_transactions() -> None:
 
     assert "최근 거래" in response
     assert "점심식사" in response
-    assert "-12000" in response
+    assert "-12,000" in response
 
 
 def test_render_transactions_table_shows_loaded_transactions(
@@ -112,6 +113,40 @@ def test_render_transactions_table_escapes_html_values() -> None:
     assert "<script>" not in response
 
 
+def test_render_transactions_table_formats_amount_with_commas() -> None:
+    transactions = [
+        {
+            "date": "2026-01-01",
+            "type": "수입",
+            "category": "급여",
+            "description": "월급",
+            "amount": 3212756,
+            "memo": "",
+        },
+    ]
+
+    response = render_transactions_table(transactions)
+
+    assert "3,212,756" in response
+
+
+def test_render_transactions_table_marks_amount_cell() -> None:
+    transactions = [
+        {
+            "date": "2026-01-01",
+            "type": "수입",
+            "category": "급여",
+            "description": "월급",
+            "amount": 3212756,
+            "memo": "",
+        },
+    ]
+
+    response = render_transactions_table(transactions)
+
+    assert "class=\"amount-cell\">3,212,756" in response
+
+
 def test_summary_route_is_registered(client: TestClient) -> None:
     paths = _route_paths(client)
 
@@ -123,9 +158,9 @@ def test_summary_page_shows_monthly_summary() -> None:
     expected_values = (
         "월별 요약",
         "2020-01",
-        "37502538",
-        "-11873710",
-        "25628828",
+        "37,502,538",
+        "-11,873,710",
+        "25,628,828",
     )
 
     assert all(value in response for value in expected_values)
@@ -134,7 +169,7 @@ def test_summary_page_shows_monthly_summary() -> None:
 def test_summary_page_uses_core_summary_values() -> None:
     response = summary_page()
 
-    assert "25628828" in response
+    assert "25,628,828" in response
 
 
 def test_render_summary_table_shows_empty_message() -> None:
@@ -156,9 +191,24 @@ def test_render_summary_table_displays_core_summary_values() -> None:
     response = render_summary_table(summary)
 
     assert "2026-01" in response
-    assert "3500000" in response
-    assert "-158300" in response
-    assert "3341700" in response
+    assert "3,500,000" in response
+    assert "-158,300" in response
+    assert "3,341,700" in response
+
+
+def test_render_summary_table_marks_amount_cells() -> None:
+    summary = {
+        "2026-01": {
+            "income": 3500000,
+            "expense": -158300,
+            "net": 3341700,
+        },
+    }
+
+    response = render_summary_table(summary)
+
+    assert "class=\"amount-cell\">3,500,000" in response
+    assert "class=\"amount-cell\">-158,300" in response
 
 
 def test_render_summary_table_shows_expected_headers() -> None:
@@ -174,6 +224,46 @@ def test_render_summary_table_shows_expected_headers() -> None:
     assert "<th>수입</th>" in response
     assert "<th>지출</th>" in response
     assert "<th>잔액</th>" in response
+
+
+def test_render_summary_table_limits_rows_to_twenty() -> None:
+    summary = {
+        f"2026-{month:02d}": {"income": month, "expense": -month, "net": 0}
+        for month in range(1, 22)
+    }
+
+    response = render_summary_table(summary)
+    expected_values = ("2026-01", "2026-20", "페이지 1 / 2")
+
+    assert all(value in response for value in expected_values)
+    assert "2026-21" not in response
+
+
+def test_render_summary_table_can_show_second_page() -> None:
+    summary = {
+        f"2026-{month:02d}": {"income": month, "expense": -month, "net": 0}
+        for month in range(1, 22)
+    }
+
+    response = render_summary_table(summary, page=2)
+
+    assert "2026-21" in response
+    assert "href=\"/summary?page=1\"" in response
+
+
+def test_summary_page_shows_year_filter_and_chart() -> None:
+    response = summary_page(year="2026")
+
+    assert "class=\"summary-chart\"" in response
+    assert "name=\"year\"" in response
+    assert "value=\"2026\" selected" in response
+    assert "2026-01" in response
+
+
+def test_render_summary_chart_shows_empty_message() -> None:
+    response = render_summary_chart({}, None)
+
+    assert "표시할 그래프가 없습니다." in response
 
 
 def test_search_route_is_registered(client: TestClient) -> None:
