@@ -1,4 +1,4 @@
-from budget.core import add_transaction
+from budget.core import add_transaction, get_balance
 
 
 def test_add_transaction_increases_length() -> None:
@@ -63,3 +63,77 @@ def test_add_transaction_allows_empty_description() -> None:
     result = add_transaction(transactions, transaction)
 
     assert result[0]["description"] == ""
+
+
+def test_get_balance_returns_zero_for_empty_transactions() -> None:
+    transactions: list[dict[str, object]] = []
+
+    result = get_balance(transactions)
+
+    assert result == 0.0
+
+
+def test_get_balance_sums_income_and_expense_amounts() -> None:
+    transactions: list[dict[str, object]] = [
+        {
+            "date": "2026-02-01",
+            "type": "수입",
+            "category": "급여",
+            "description": "월급",
+            "amount": 4358625,
+            "memo": "",
+        },
+        {
+            "date": "2026-02-01",
+            "type": "지출",
+            "category": "여행",
+            "description": "여행 경비",
+            "amount": -651009,
+            "memo": "카드결제",
+        },
+        {
+            "date": "2026-02-15",
+            "type": "지출",
+            "category": "통신",
+            "description": "케이블TV",
+            "amount": -111988,
+            "memo": "현금",
+        },
+    ]
+
+    result = get_balance(transactions)
+
+    assert result == 3595628.0
+
+
+def test_get_balance_matches_step2_january_sample() -> None:
+    transactions: list[dict[str, object]] = [
+        {
+            "date": "2026-01-04",
+            "type": "지출",
+            "category": "여행",
+            "description": "항공권",
+            "amount": -979796,
+            "memo": "메모_3",
+        },
+        {
+            "date": "2026-01-05",
+            "type": "지출",
+            "category": "의료",
+            "description": "한의원",
+            "amount": -65990,
+            "memo": "카드결제",
+        },
+        {
+            "date": "2026-01-15",
+            "type": "수입",
+            "category": "기타수입",
+            "description": "중고 판매",
+            "amount": 135541,
+            "memo": "",
+        },
+    ]
+
+    result = get_balance(transactions)
+
+    assert result == -910245.0
