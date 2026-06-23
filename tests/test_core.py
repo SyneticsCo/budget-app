@@ -1,4 +1,12 @@
-from budget.core import add_transaction, filter_by_category, get_balance
+from pathlib import Path
+
+from budget.core import (
+    add_transaction,
+    filter_by_category,
+    get_balance,
+    load_transactions_from_csv,
+    monthly_summary,
+)
 
 
 def test_add_transaction_increases_length() -> None:
@@ -224,3 +232,87 @@ def test_filter_by_category_returns_independent_result() -> None:
     result[0]["description"] = "수정된 설명"
 
     assert transactions[0]["description"] == "인터넷 요금"
+
+
+def test_load_transactions_from_csv_reads_step1_rows() -> None:
+    csv_path = Path("data/step1_transactions.csv")
+
+    result = load_transactions_from_csv(csv_path)
+
+    assert len(result) == 10
+
+
+def test_load_transactions_from_csv_converts_amount_to_int() -> None:
+    csv_path = Path("data/step1_transactions.csv")
+
+    result = load_transactions_from_csv(csv_path)
+
+    assert result[0]["amount"] == -12000
+    assert isinstance(result[0]["amount"], int)
+
+
+def test_load_transactions_from_csv_handles_utf8_sig_header() -> None:
+    csv_path = Path("data/step1_transactions.csv")
+
+    result = load_transactions_from_csv(csv_path)
+
+    assert result[0] == {
+        "date": "2026-01-05",
+        "type": "지출",
+        "category": "식비",
+        "description": "점심식사",
+        "amount": -12000,
+        "memo": "",
+    }
+
+
+def test_monthly_summary_returns_empty_dict_for_empty_transactions() -> None:
+    transactions: list[dict[str, object]] = []
+
+    result = monthly_summary(transactions)
+
+    assert result == {}
+
+
+def test_monthly_summary_calculates_income_expense_and_net_by_month() -> None:
+    transactions: list[dict[str, object]] = [
+        {
+            "date": "2026-01-07",
+            "type": "수입",
+            "category": "급여",
+            "description": "월급",
+            "amount": 3500000,
+            "memo": "1월급여",
+        },
+        {
+            "date": "2026-01-05",
+            "type": "지출",
+            "category": "식비",
+            "description": "점심식사",
+            "amount": -12000,
+            "memo": "",
+        },
+        {
+            "date": "2026-01-28",
+            "type": "기타수입",
+            "category": "기타수입",
+            "description": "중고 판매",
+            "amount": 25000,
+            "memo": "중고마켓",
+        },
+        {
+            "date": "2026-02-01",
+            "type": "지출",
+            "category": "여행",
+            "description": "여행 경비",
+            "amount": -651009,
+            "memo": "카드결제",
+        },
+    ]
+
+    result = monthly_summary(transactions)
+
+    assert result == {
+        "2026-01": {"income": 3525000, "expense": -12000, "net": 3513000},
+        "2026-02": {"income": 0, "expense": -651009, "net": -651009},
+    }
