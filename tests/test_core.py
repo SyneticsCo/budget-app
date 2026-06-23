@@ -316,3 +316,31 @@ def test_monthly_summary_calculates_income_expense_and_net_by_month() -> None:
         "2026-01": {"income": 3525000, "expense": -12000, "net": 3513000},
         "2026-02": {"income": 0, "expense": -651009, "net": -651009},
     }
+
+
+def test_load_transactions_from_csv_loads_step4_large_file() -> None:
+    csv_path = Path("data/step4_large_transactions.csv")
+
+    result = load_transactions_from_csv(csv_path)
+
+    assert len(result) == 5000
+
+
+def test_get_balance_returns_expected_step4_large_total() -> None:
+    csv_path = Path("data/step4_large_transactions.csv")
+    transactions = load_transactions_from_csv(csv_path)
+
+    result = get_balance(transactions)
+
+    assert result == 1134968783.0
+
+
+def test_monthly_summary_handles_step4_large_month_range() -> None:
+    csv_path = Path("data/step4_large_transactions.csv")
+    transactions = load_transactions_from_csv(csv_path)
+
+    result = monthly_summary(transactions)
+
+    assert len(result) >= 65
+    assert min(result) == "2020-01"
+    assert max(result) == "2026-06"
