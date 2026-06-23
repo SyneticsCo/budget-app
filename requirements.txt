@@ -1,0 +1,5 @@
+pytest
+pytest-cov
+radon
+xenon
+flake8
