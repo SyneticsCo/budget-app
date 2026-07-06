@@ -1,21 +1,43 @@
 # budget-app
 
-CSV 파일 기반의 가계부 데이터를 처리하는 Python 프로젝트입니다. 거래 내역을
-불러오고, 잔액 계산, 카테고리 필터링, 월별 수입/지출/순이익 요약을 수행합니다.
+CSV 파일 기반의 가계부 데이터를 처리하고 FastAPI 웹 화면으로 확인하는 Python
+프로젝트입니다. 거래 내역을 불러오고, 잔액 계산, 카테고리 필터링, 월별
+수입/지출/순이익 요약, 웹 기반 거래 조회와 검색을 수행합니다.
 
 ## 주요 기능
+
+### 코어 기능
 
 - 거래 내역 추가
 - 전체 잔액 계산
 - 카테고리별 거래 필터링
 - CSV 파일에서 거래 내역 로드
 - 월별 수입, 지출, 순이익 요약
-- 대용량 CSV 샘플 데이터 처리 테스트
+- UTF-8 BOM 포함 CSV 헤더 처리
+
+### 웹 UI 기능
+
+- `/`: 가계부 웹 홈
+- `/transactions`: CSV 거래 목록 조회
+- `/summary`: 연도별 월별 요약 차트와 표 조회
+- `/search`: 날짜 범위와 카테고리 기반 거래 검색
+- 거래 목록과 월별 요약 페이지네이션
+- HTML 값 이스케이프와 날짜 입력 검증
+- 5,000건 대용량 CSV 샘플 데이터 처리
 
 ## 프로젝트 구조
 
 ```text
 budget-app/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── static/
+│   │   └── styles.css
+│   └── templates/
+│       ├── base.html
+│       ├── content.html
+│       └── home.html
 ├── budget/
 │   ├── __init__.py
 │   └── core.py
@@ -26,7 +48,9 @@ budget-app/
 │   └── step4_large_transactions.csv
 ├── tests/
 │   ├── __init__.py
-│   └── test_core.py
+│   ├── test_core.py
+│   ├── test_main.py
+│   └── test_performance.py
 ├── requirements.txt
 └── README.md
 ```
@@ -45,7 +69,32 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 사용 예시
+## 웹 UI 실행
+
+```bash
+uvicorn app.main:create_app --factory --reload
+```
+
+브라우저에서 `http://127.0.0.1:8000`으로 접속합니다.
+
+웹 UI는 기본적으로 `data/step4_large_transactions.csv` 파일을 사용합니다.
+
+### 웹 경로
+
+| 경로 | 설명 |
+| --- | --- |
+| `/` | 홈 화면 |
+| `/transactions` | 최근 거래 목록 |
+| `/summary` | 월별 수입, 지출, 잔액 요약과 연도별 차트 |
+| `/search` | 카테고리, 시작일자, 종료일자로 거래 검색 |
+
+검색 예시는 다음과 같습니다.
+
+```text
+http://127.0.0.1:8000/search?category=교통&start=2026-01-01&end=2026-06-30
+```
+
+## 코어 API 사용 예시
 
 ```python
 from pathlib import Path
@@ -89,6 +138,15 @@ date,type,category,description,amount,memo
 | `amount` | 거래 금액 | 수입은 양수, 지출은 음수 |
 | `memo` | 추가 메모 | `카드결제` |
 
+## 샘플 데이터
+
+| 파일 | 설명 |
+| --- | --- |
+| `data/step1_transactions.csv` | 기본 기능 테스트용 10건 샘플 |
+| `data/step2_transactions.csv` | 카테고리와 월별 계산 테스트용 확장 샘플 |
+| `data/step3_transactions.csv` | 중간 규모 샘플 |
+| `data/step4_large_transactions.csv` | 웹 UI와 성능 테스트용 5,000건 샘플 |
+
 ## 테스트
 
 ```bash
@@ -107,6 +165,14 @@ pytest --cov=budget --cov-report=term-missing --cov-fail-under=70
 radon cc -s budget tests
 xenon --max-absolute B --max-modules B --max-average B budget tests
 flake8 budget tests
+```
+
+웹 앱까지 포함해 검사하려면 다음처럼 `app`도 대상에 포함합니다.
+
+```bash
+radon cc -s app budget tests
+xenon --max-absolute B --max-modules B --max-average B app budget tests
+flake8 app budget tests
 ```
 
 ## 개발 규칙
